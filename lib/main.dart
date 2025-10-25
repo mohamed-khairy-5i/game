@@ -72,11 +72,14 @@ class GameOverOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNewHighScore = game.score > game.highScore;
+    
     return Container(
-      color: Colors.black54,
+      color: Colors.black87,
       child: Center(
         child: Card(
           margin: const EdgeInsets.all(32),
+          elevation: 8,
           child: Padding(
             padding: const EdgeInsets.all(32.0),
             child: Column(
@@ -91,20 +94,41 @@ class GameOverOverlay extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+                if (isNewHighScore) ...[
+                  const Text(
+                    '🎉 NEW HIGH SCORE! 🎉',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Text(
-                  'Final Score: ${game.score}',
+                  'Score: ${game.score}',
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 Text(
-                  'Speed: ${game.gameSpeed.toInt()}',
-                  style: const TextStyle(
+                  'Best: ${game.highScore}',
+                  style: TextStyle(
                     fontSize: 24,
-                    color: Colors.grey,
+                    color: Colors.amber.shade700,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildStatCard('💰', game.coins.toString(), 'Coins'),
+                    const SizedBox(width: 16),
+                    _buildStatCard('🏎️', '${(game.gameSpeed * 0.5).toInt()}', 'km/h'),
+                  ],
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
@@ -127,11 +151,20 @@ class GameOverOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  '🎮 Use arrow keys or tap to move',
+                  '🎮 Controls: Arrow keys (⬅️➡️) or Tap screen',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     color: Colors.grey,
                     fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '💡 Tip: Collect power-ups for special abilities!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -139,6 +172,39 @@ class GameOverOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+  
+  Widget _buildStatCard(String icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            icon,
+            style: const TextStyle(fontSize: 32),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
       ),
     );
   }

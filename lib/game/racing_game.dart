@@ -5,23 +5,47 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'game_components.dart';
 
 class RacingGame extends FlameGame with KeyboardEvents, TapDetector {
   late PlayerCar player;
   late RoadBackground road;
   late ScoreComponent scoreComponent;
+  late HighScoreComponent highScoreComponent;
+  late CoinsDisplayComponent coinsDisplay;
+  late SpeedIndicatorComponent speedIndicator;
+  late ActivePowerUpsComponent activePowerUps;
   
   int score = 0;
+  int highScore = 0;
+  int coins = 0;
   double gameSpeed = 200.0;
   bool isGameOver = false;
+  double timePassed = 0;
   
   final Random random = Random();
   double timeSinceLastObstacle = 0;
-  final double obstacleInterval = 1.5; // seconds
+  double timeSinceLastCoin = 0;
+  double timeSinceLastPowerUp = 0;
+  final double obstacleInterval = 1.5;
+  final double coinInterval = 2.0;
+  final double powerUpInterval = 10.0;
+  
+  // Power-ups
+  bool shieldActive = false;
+  double shieldTimeLeft = 0;
+  bool slowTimeActive = false;
+  double slowTimeLeft = 0;
+  bool magnetActive = false;
+  double magnetTimeLeft = 0;
   
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    
+    // Load high score
+    await _loadHighScore();
     
     // Add road background
     road = RoadBackground();
@@ -33,12 +57,39 @@ class RacingGame extends FlameGame with KeyboardEvents, TapDetector {
     );
     add(player);
     
-    // Add score display
+    // Add UI components
     scoreComponent = ScoreComponent();
     add(scoreComponent);
     
+    highScoreComponent = HighScoreComponent();
+    add(highScoreComponent);
+    
+    coinsDisplay = CoinsDisplayComponent();
+    add(coinsDisplay);
+    
+    speedIndicator = SpeedIndicatorComponent();
+    add(speedIndicator);
+    
+    activePowerUps = ActivePowerUpsComponent();
+    add(activePowerUps);
+    
     // Add game title
     add(GameTitle());
+  }
+  
+  Future<void> _loadHighScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    highScore = prefs.getInt('highScore') ?? 0;
+    coins = prefs.getInt('totalCoins') ?? 0;
+  }
+  
+  Future<void> _saveHighScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (score > highScore) {
+      highScore = score;
+      await prefs.setInt('highScore', highScore);
+    }
+    await prefs.setInt('totalCoins', coins);
   }
   
   @override
@@ -46,6 +97,11 @@ class RacingGame extends FlameGame with KeyboardEvents, TapDetector {
     super.update(dt);
     
     if (isGameOver) return;
+    
+    timePassed += dt;
+    
+    // Update power-ups
+    _updatePowerUps(dt);
     
     // Increase game speed over time
     gameSpeed += dt * 2;
@@ -57,22 +113,149 @@ class RacingGame extends FlameGame with KeyboardEvents, TapDetector {
       timeSinceLastObstacle = 0;
     }
     
+    // Spawn coins
+    timeSinceLastCoin += dt;
+    if (timeSinceLastCoin >= coinInterval) {
+      spawnCoin();
+      timeSinceLastCoin = 0;
+    }
+    
+    // Spawn power-ups
+    timeSinceLastPowerUp += dt;
+    if (timeSinceLastPowerUp >= powerUpInterval) {
+      spawnPowerUp();
+      timeSinceLastPowerUp = 0;
+    }
+    
     // Increase score
     score += (dt * 10).toInt();
+  }
+  
+  void _updatePowerUps(double dt) {
+    if (shieldActive) {
+      shieldTimeLeft -= dt;
+      if (shieldTimeLeft <= 0) {
+        shieldActive = false;
+        shieldTimeLeft = 0;
+      }
+    }
+    
+    if (slowTimeActive) {
+      slowTimeLeft -= dt;
+      if (slowTimeLeft <= 0) {
+        slowTimeActive = false;
+        slowTimeLeft = 0;
+      }
+    }
+    
+    if (magnetActive) {
+      magnetTimeLeft -= dt;
+      if (magnetTimeLeft <= 0) {
+        magnetActive = false;
+        magnetTimeLeft = 0;
+      }
+      _attractCoins();
+    }
+  }
+  
+  void _attractCoins() {
+    children.whereType<CoinComponent>().forEach((coin) {
+      if (!coin.collected && (coin.position - player.position).length < 200) {
+        final direction = (player.position - coin.position).normalized();
+        coin.position.add(direction * 5);
+      }
+    });
   }
   
   void spawnObstacle() {
     final lanes = [size.x * 0.25, size.x * 0.5, size.x * 0.75];
     final lane = lanes[random.nextInt(lanes.length)];
     
+    final effectiveSpeed = slowTimeActive ? gameSpeed * 0.5 : gameSpeed;
+    
     add(ObstacleCar(
       position: Vector2(lane, -100),
-      speed: gameSpeed,
+      speed: effectiveSpeed,
     ));
   }
   
+  void spawnCoin() {
+    final lanes = [size.x * 0.25, size.x * 0.5, size.x * 0.75];
+    final lane = lanes[random.nextInt(lanes.length)];
+    
+    final effectiveSpeed = slowTimeActive ? gameSpeed * 0.5 : gameSpeed;
+    
+    add(CoinComponent(
+      position: Vector2(lane, -100),
+      speed: effectiveSpeed,
+    ));
+  }
+  
+  void spawnPowerUp() {
+    final lanes = [size.x * 0.25, size.x * 0.5, size.x * 0.75];
+    final lane = lanes[random.nextInt(lanes.length)];
+    
+    final types = [PowerUpType.shield, PowerUpType.slowTime, PowerUpType.magnet];
+    final type = types[random.nextInt(types.length)];
+    
+    final effectiveSpeed = slowTimeActive ? gameSpeed * 0.5 : gameSpeed;
+    
+    add(PowerUpComponent(
+      position: Vector2(lane, -100),
+      speed: effectiveSpeed,
+      type: type,
+    ));
+  }
+  
+  void collectCoin() {
+    coins++;
+    score += 50;
+    _createParticles(player.position, Colors.yellow, 8);
+  }
+  
+  void collectPowerUp(PowerUpType type) {
+    _createParticles(player.position, Colors.purple, 12);
+    
+    switch (type) {
+      case PowerUpType.shield:
+        shieldActive = true;
+        shieldTimeLeft = 5.0;
+        break;
+      case PowerUpType.slowTime:
+        slowTimeActive = true;
+        slowTimeLeft = 5.0;
+        break;
+      case PowerUpType.magnet:
+        magnetActive = true;
+        magnetTimeLeft = 8.0;
+        break;
+    }
+  }
+  
+  void _createParticles(Vector2 position, Color color, int count) {
+    for (int i = 0; i < count; i++) {
+      final angle = (i / count) * 2 * pi;
+      final velocity = Vector2(cos(angle), sin(angle)) * 100;
+      
+      add(ParticleEffect(
+        position: position.clone(),
+        color: color,
+        lifeTime: 0.5,
+        velocity: velocity,
+      ));
+    }
+  }
+  
   void gameOver() {
+    if (shieldActive) {
+      shieldActive = false;
+      shieldTimeLeft = 0;
+      _createParticles(player.position, Colors.cyan, 16);
+      return; // Shield protected the player
+    }
+    
     isGameOver = true;
+    _saveHighScore();
     overlays.add('GameOver');
   }
   
@@ -80,14 +263,30 @@ class RacingGame extends FlameGame with KeyboardEvents, TapDetector {
     isGameOver = false;
     score = 0;
     gameSpeed = 200.0;
+    timePassed = 0;
     
-    // Remove all obstacles
+    // Reset power-ups
+    shieldActive = false;
+    shieldTimeLeft = 0;
+    slowTimeActive = false;
+    slowTimeLeft = 0;
+    magnetActive = false;
+    magnetTimeLeft = 0;
+    
+    // Remove all obstacles, coins, and power-ups
     children.whereType<ObstacleCar>().toList().forEach((obstacle) {
       obstacle.removeFromParent();
+    });
+    children.whereType<CoinComponent>().toList().forEach((coin) {
+      coin.removeFromParent();
+    });
+    children.whereType<PowerUpComponent>().toList().forEach((powerUp) {
+      powerUp.removeFromParent();
     });
     
     // Reset player position
     player.position = Vector2(size.x / 2, size.y - 150);
+    player.currentLane = 1;
     
     overlays.remove('GameOver');
   }
@@ -144,6 +343,30 @@ class PlayerCar extends PositionComponent with HasGameReference<RacingGame> {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    
+    // Draw shield if active
+    if (game.shieldActive) {
+      final shieldPaint = Paint()
+        ..color = Colors.cyan.withValues(alpha: 0.4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+      
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        45,
+        shieldPaint,
+      );
+      
+      final shieldFillPaint = Paint()
+        ..color = Colors.cyan.withValues(alpha: 0.1)
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        45,
+        shieldFillPaint,
+      );
+    }
     
     // Draw car body
     final paint = Paint()..color = Colors.blue;
@@ -344,7 +567,8 @@ class RoadBackground extends Component with HasGameReference<RacingGame> {
   void update(double dt) {
     super.update(dt);
     if (!game.isGameOver) {
-      roadOffset += game.gameSpeed * dt;
+      final effectiveSpeed = game.slowTimeActive ? game.gameSpeed * 0.5 : game.gameSpeed;
+      roadOffset += effectiveSpeed * dt;
     }
   }
 }
