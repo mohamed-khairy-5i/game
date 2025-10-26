@@ -60,17 +60,30 @@ flutter run -d android
 flutter run --release
 ```
 
-## 📦 Download APK
+## 📦 Download APK & AAB
 
-Ready to play on Android? Download the latest APK:
+Ready to play on Android? Download the latest release:
 
-**[📥 Download Racing Game v1.0.0 (40MB)](releases/racing-game-v1.0.0.apk)**
+### Version 2.0.0 (Latest)
+
+**For Direct Installation (APK):**
+- **[📥 Universal APK (40MB)](releases/racing-game-v2.0.0.apk)** - Works on all Android devices
+- **[📥 ARM64 APK (14MB)](releases/racing-game-v2.0.0-arm64.apk)** - Optimized for modern devices
+
+**For Google Play Store Upload (AAB):**
+- **[📦 App Bundle (37MB)](releases/racing-game-v2.0.0.aab)** - For Play Store submission
 
 ### Installation Instructions
-1. Download the APK file
+**For APK files:**
+1. Download the APK file (Universal or ARM64)
 2. Enable "Install from Unknown Sources" in your Android settings
 3. Open the APK file and tap "Install"
 4. Launch the game and enjoy!
+
+**For AAB file:**
+1. Upload to Google Play Console
+2. Google Play will generate optimized APKs for users
+3. Users download from Play Store directly
 
 ## 🎯 How to Play
 
